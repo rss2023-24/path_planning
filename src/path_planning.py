@@ -31,6 +31,7 @@ class PathPlan(object):
 
         self.map_grid = None
         self.map_info = None
+        self.rot_matrix = None
         self.start_loc = None
         self.goal_loc = None
         # self.start_loc = (0, 0)
@@ -46,13 +47,26 @@ class PathPlan(object):
         self.map_grid = grid
         self.map_info = msg.info
 
-        print(grid)
+        map_orientation = self.map_info.origin.orientation
+        rot_matrix = tf.transformations.quaternion_matrix([map_orientation.x, map_orientation.y, map_orientation.z, map_orientation.w])
+        rot_matrix[0:3, 3] = np.array( [self.map_info.origin.position.x, self.map_info.origin.position.y, self.map_info.origin.position.z] ) # Include translation
+        self.rot_matrix = rot_matrix
+
+        # print(grid)
 
     def start_cb(self, msg):
         self.start_pos = (msg.pose.pose.position.y, msg.pose.pose.position.x)
         # print(self.start_pos)
 
-        # self.compute_real_coordinates((0.0, 0.0))
+        # print(self.start_pos)
+
+        # a = self.compute_pixel_point(self.start_pos)
+        # print(a)
+        # b = self.compute_real_coordinates(a)
+        # print(b)
+
+        # ry, rx = self.compute_real_coordinates((50.0, 25.0))
+        # print( self.compute_pixel_point(self.compute_real_coordinates((50.0, 25.0))) )
 
     def odom_cb(self, msg):
         pass  ## REMOVE AND FILL IN ##
@@ -60,30 +74,40 @@ class PathPlan(object):
     def goal_cb(self, msg):
         self.goal_loc = (msg.pose.position.y, msg.pose.position.x)
 
-        if self.start_loc == None:
+        # if self.start_loc == None:
             # self.plan_path(self.map_grid, self.start_loc, self.goal_loc)
-            pass
-        print(self.goal_loc)
+            # pass
+        # print(self.goal_loc)
+
+        self.plan_path()
 
 
     def compute_real_coordinates(self, pixel_point):
         py, px = pixel_point
         spy, spx = py * self.map_info.resolution, px * self.map_info.resolution
 
-        map_orientation = self.map_info.origin.orientation
-        rot_matrix = tf.transformations.quaternion_matrix([map_orientation.x, map_orientation.y, map_orientation.z, map_orientation.w])
-        rot_matrix[0:3, 3] = np.array( [self.map_info.origin.position.x, self.map_info.origin.position.y, self.map_info.origin.position.z] ) # Include translation
+        point_vec =  np.array( [spx, spy, 0.0, 1.0] ).T  # x, y, z, w
+        prenorm_vec = np.matmul(self.rot_matrix, point_vec)
 
-        point_vec =  np.array( [spx, spy, 0.0, 1.0] )
-        coord_x, coord_y, coord_z = point_vec / point_vec[2]
+        # print(self.map_info.resolution)
+
+        # print(self.rot_matrix)
+        # print(point_vec)
+        # print(prenorm_vec)
+
+        coord_x, coord_y, coord_z, _ = prenorm_vec / prenorm_vec[3]
 
         return (coord_y, coord_x)
 
     def compute_pixel_point(self, real_coordinates):
-        pass
+        ry, rx = real_coordinates
+        point_vec = np.array( [rx, ry, 0, 1.0] )
+        
+        pre_resolution_vec =  np.matmul(np.linalg.inv(self.rot_matrix), point_vec)
+        coord_x, coord_y, coord_z, _ = np.rint(pre_resolution_vec / self.map_info.resolution).astype(int)
 
-
-
+        return (coord_y, coord_x)
+    
 
     def compute_distance(self, p1, p2):
         y1, x1 = p1
@@ -111,20 +135,25 @@ class PathPlan(object):
     def plan_path(self, start_point, goal_point):
         ## Uses A* ##
 
+        print(start_point)
+        print(goal_point)
+
         queue = [ (self.estimate_heuristic(start_point, goal_point), 0.0, start_point) ]  # Use as a heap (estimated_cost, current_weight, point)
-        parents = {}  # Also use for identifying visited cells
-
-        # cost_map = { start_point: 0 }
-        # cost_map_with_heuristic = { start_point: self.estimate_heuristic(start_point, goal_point) }
-
-        # weight_map = { start_point: 0.0 }
+        parents = { start_point: None }  # Also use for identifying visited cells
 
         while queue:
             estimated_cost, current_weight, current_point = heapq.heappop(queue)
-            # current_weight = weight_map[current_point]
 
             if current_point == goal_point:
-                print("Yeet")
+                
+                path = [goal_point]
+                parent = goal_point
+                while parent != None:
+                    parent = parents[parent]
+                    path.append(parent)
+                
+                print(path)
+
                 return
             
             neighbors = self.get_valid_neighbors(current_point)
@@ -133,8 +162,6 @@ class PathPlan(object):
                     edge_weight = self.compute_distance(current_point, neighbor_point)
                     new_weight = edge_weight + current_weight
                     new_estimate = new_weight + self.estimate_heuristic(neighbor_point, goal_point)
-
-                    # prev_weight = weight_map[neighbor_point]
 
                     parents[neighbor_point] = current_point
                     queue_item = (new_estimate, new_weight, neighbor_point)
