@@ -3,7 +3,7 @@
 import rospy
 import tf
 import numpy as np
-from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped
+from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped, Point
 from nav_msgs.msg import Odometry, OccupancyGrid
 import rospkg
 import time, os
@@ -28,6 +28,7 @@ class PathPlan(object):
 
         self.trajectory = LineTrajectory("/planned_trajectory")
         self.traj_pub = rospy.Publisher("/trajectory/current", PoseArray, queue_size=10)
+        # self.path_pub = rospy.Publisher("/path/points", PointArray, queue_size=10)
 
         self.map_grid = None
         self.map_info = None
@@ -42,7 +43,7 @@ class PathPlan(object):
     def map_cb(self, msg):
         msg_map = msg.data
         grid_dimensions = (msg.info.height, msg.info.width)
-        grid = np.reshape(msg_map, grid_dimensions) == 0
+        grid = np.reshape(msg_map, grid_dimensions)
 
         self.map_grid = grid
         self.map_info = msg.info
@@ -52,35 +53,22 @@ class PathPlan(object):
         rot_matrix[0:3, 3] = np.array( [self.map_info.origin.position.x, self.map_info.origin.position.y, self.map_info.origin.position.z] ) # Include translation
         self.rot_matrix = rot_matrix
 
-        # print(grid)
+        print("Map obtained")
 
     def start_cb(self, msg):
-        self.start_pos = (msg.pose.pose.position.y, msg.pose.pose.position.x)
-        # print(self.start_pos)
+        self.start_loc = (msg.pose.pose.position.y, msg.pose.pose.position.x)
 
-        # print(self.start_pos)
-
-        # a = self.compute_pixel_point(self.start_pos)
-        # print(a)
-        # b = self.compute_real_coordinates(a)
-        # print(b)
-
-        # ry, rx = self.compute_real_coordinates((50.0, 25.0))
-        # print( self.compute_pixel_point(self.compute_real_coordinates((50.0, 25.0))) )
-
-    def odom_cb(self, msg):
-        pass  ## REMOVE AND FILL IN ##
+        if self.goal_loc != None:
+            self.plan_path()
 
     def goal_cb(self, msg):
         self.goal_loc = (msg.pose.position.y, msg.pose.position.x)
 
-        # if self.start_loc == None:
-            # self.plan_path(self.map_grid, self.start_loc, self.goal_loc)
-            # pass
-        # print(self.goal_loc)
+        if self.start_loc != None:
+            self.plan_path()
 
-        self.plan_path()
-
+    def odom_cb(self, msg):
+        pass  ## REMOVE AND FILL IN ##
 
     def compute_real_coordinates(self, pixel_point):
         py, px = pixel_point
@@ -89,20 +77,14 @@ class PathPlan(object):
         point_vec =  np.array( [spx, spy, 0.0, 1.0] ).T  # x, y, z, w
         prenorm_vec = np.matmul(self.rot_matrix, point_vec)
 
-        # print(self.map_info.resolution)
-
-        # print(self.rot_matrix)
-        # print(point_vec)
-        # print(prenorm_vec)
-
         coord_x, coord_y, coord_z, _ = prenorm_vec / prenorm_vec[3]
 
         return (coord_y, coord_x)
 
     def compute_pixel_point(self, real_coordinates):
         ry, rx = real_coordinates
-        point_vec = np.array( [rx, ry, 0, 1.0] )
-        
+        point_vec = np.array( [rx, ry, 0.0, 1.0] )
+
         pre_resolution_vec =  np.matmul(np.linalg.inv(self.rot_matrix), point_vec)
         coord_x, coord_y, coord_z, _ = np.rint(pre_resolution_vec / self.map_info.resolution).astype(int)
 
@@ -127,16 +109,30 @@ class PathPlan(object):
             for dx in (-1, 0, 1):
                 new_y, new_x = py + dy, px + dx
                 valid_coord = 0 <= new_y < height and 0 <= new_x < width and (dy, dx) != (0, 0)
-                if valid_coord and grid[new_y, new_x]:
-                    neighbors.add( (new_x, new_y) )
+                if valid_coord and grid[new_y, new_x] == 0:
+                    neighbors.add( (new_y, new_x) )
         
         return neighbors
 
-    def plan_path(self, start_point, goal_point):
+    def make_trajectory(self, path):
+        traj = LineTrajectory()
+        for py, px in path:
+            ry, rx = self.compute_real_coordinates( (py, px) )
+
+            traj_point = Point()
+            traj_point.x = rx
+            traj_point.y = ry
+            traj_point.z = 0
+
+            traj.addPoint(traj_point)
+        
+        return traj
+
+    def plan_path(self):
         ## Uses A* ##
 
-        print(start_point)
-        print(goal_point)
+        start_point = self.compute_pixel_point(self.start_loc)
+        goal_point = self.compute_pixel_point(self.goal_loc)
 
         queue = [ (self.estimate_heuristic(start_point, goal_point), 0.0, start_point) ]  # Use as a heap (estimated_cost, current_weight, point)
         parents = { start_point: None }  # Also use for identifying visited cells
@@ -148,11 +144,18 @@ class PathPlan(object):
                 
                 path = [goal_point]
                 parent = goal_point
-                while parent != None:
+                while parents[parent] != None:
                     parent = parents[parent]
                     path.append(parent)
-                
-                print(path)
+                path = path[::-1]
+
+                self.trajectory = self.make_trajectory(path)
+
+                # publish trajectory
+                self.traj_pub.publish(self.trajectory.toPoseArray())
+
+                # visualize trajectory Markers
+                self.trajectory.publish_viz()
 
                 return
             
@@ -166,12 +169,6 @@ class PathPlan(object):
                     parents[neighbor_point] = current_point
                     queue_item = (new_estimate, new_weight, neighbor_point)
                     heapq.heappush(queue, queue_item)
-
-        # publish trajectory
-        self.traj_pub.publish(self.trajectory.toPoseArray())
-
-        # visualize trajectory Markers
-        self.trajectory.publish_viz()
 
 
 if __name__=="__main__":

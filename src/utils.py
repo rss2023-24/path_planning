@@ -22,7 +22,7 @@ class LineTrajectory(object):
         self.points = []
         self.distances = []
         self.has_acceleration = False
-        self.visualize = False
+        self.visualize = True
         self.viz_namespace = viz_namespace
 
         if viz_namespace:
@@ -123,6 +123,11 @@ class LineTrajectory(object):
             pose.position.y = p[1]
             traj.poses.append(pose)
         return traj
+    
+    def toPointArray(self):
+        pa = PointArray()
+        pa.points = self.points
+        return pa
 
     def publish_start_point(self, duration=0.0, scale=0.1):
         should_publish = len(self.points) > 0
