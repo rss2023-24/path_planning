@@ -45,7 +45,7 @@ class PathPlan(object):
         msg_map = msg.data
         grid_dimensions = (msg.info.height, msg.info.width)
         grid = np.reshape(msg_map, grid_dimensions)
-        grid = ndimage.binary_dilation(grid, iterations=13)
+        grid = ndimage.binary_dilation(grid, iterations=14)
 
 
         self.map_grid = grid
@@ -61,9 +61,6 @@ class PathPlan(object):
 
     def start_cb(self, msg):
         self.start_loc = (msg.pose.pose.position.y, msg.pose.pose.position.x)
-
-        if self.goal_loc != None:
-            self.plan_path()
 
     def goal_cb(self, msg):
         self.goal_loc = (msg.pose.position.y, msg.pose.position.x)
