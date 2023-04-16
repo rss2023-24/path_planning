@@ -69,7 +69,7 @@ class PathPlan(object):
             self.plan_path()
 
     def odom_cb(self, msg):
-        pass  ## REMOVE AND FILL IN ##
+        self.start_loc = (msg.pose.pose.position.y, msg.pose.pose.position.x)
 
     def compute_real_coordinates(self, pixel_point):
         py, px = pixel_point
@@ -93,10 +93,8 @@ class PathPlan(object):
     
 
     def compute_distance(self, p1, p2):
-        y1, x1 = p1
-        y2, x2 = p2
-        return ( (y2 - y1) ** 2.0 + (x2 - x1) ** 2.0  ) ** (1.0/2.0)
-    
+        return np.linalg.norm(np.array(p1) - np.array(p2))
+
     def estimate_heuristic(self, p1, goal):
         return self.compute_distance(p1, goal)
 
