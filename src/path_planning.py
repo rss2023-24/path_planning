@@ -3,6 +3,7 @@
 import rospy
 import tf
 import numpy as np
+from scipy import ndimage
 from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped, Point
 from nav_msgs.msg import Odometry, OccupancyGrid
 import rospkg
@@ -44,6 +45,8 @@ class PathPlan(object):
         msg_map = msg.data
         grid_dimensions = (msg.info.height, msg.info.width)
         grid = np.reshape(msg_map, grid_dimensions)
+        grid = ndimage.binary_dilation(grid, iterations=13)
+
 
         self.map_grid = grid
         self.map_info = msg.info
