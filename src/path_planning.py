@@ -3,6 +3,7 @@
 import rospy
 import tf
 import numpy as np
+from scipy import ndimage
 from geometry_msgs.msg import PoseStamped, PoseArray, PoseWithCovarianceStamped, Point
 from nav_msgs.msg import Odometry, OccupancyGrid
 import rospkg
@@ -44,6 +45,8 @@ class PathPlan(object):
         msg_map = msg.data
         grid_dimensions = (msg.info.height, msg.info.width)
         grid = np.reshape(msg_map, grid_dimensions)
+        grid = ndimage.binary_dilation(grid, iterations=14)
+
 
         self.map_grid = grid
         self.map_info = msg.info
@@ -52,14 +55,12 @@ class PathPlan(object):
         rot_matrix = tf.transformations.quaternion_matrix([map_orientation.x, map_orientation.y, map_orientation.z, map_orientation.w])
         rot_matrix[0:3, 3] = np.array( [self.map_info.origin.position.x, self.map_info.origin.position.y, self.map_info.origin.position.z] ) # Include translation
         self.rot_matrix = rot_matrix
+        self.inverse_rot_matrix = np.linalg.inv(self.rot_matrix)
 
         print("Map obtained")
 
     def start_cb(self, msg):
         self.start_loc = (msg.pose.pose.position.y, msg.pose.pose.position.x)
-
-        if self.goal_loc != None:
-            self.plan_path()
 
     def goal_cb(self, msg):
         self.goal_loc = (msg.pose.position.y, msg.pose.position.x)
@@ -68,7 +69,7 @@ class PathPlan(object):
             self.plan_path()
 
     def odom_cb(self, msg):
-        pass  ## REMOVE AND FILL IN ##
+        self.start_loc = (msg.pose.pose.position.y, msg.pose.pose.position.x)
 
     def compute_real_coordinates(self, pixel_point):
         py, px = pixel_point
@@ -85,17 +86,15 @@ class PathPlan(object):
         ry, rx = real_coordinates
         point_vec = np.array( [rx, ry, 0.0, 1.0] )
 
-        pre_resolution_vec =  np.matmul(np.linalg.inv(self.rot_matrix), point_vec)
+        pre_resolution_vec =  np.matmul(self.inverse_rot_matrix, point_vec)
         coord_x, coord_y, coord_z, _ = np.rint(pre_resolution_vec / self.map_info.resolution).astype(int)
 
         return (coord_y, coord_x)
     
 
     def compute_distance(self, p1, p2):
-        y1, x1 = p1
-        y2, x2 = p2
-        return ( (y2 - y1) ** 2.0 + (x2 - x1) ** 2.0  ) ** (1.0/2.0)
-    
+        return np.linalg.norm(np.array(p1) - np.array(p2))
+
     def estimate_heuristic(self, p1, goal):
         return self.compute_distance(p1, goal)
 
