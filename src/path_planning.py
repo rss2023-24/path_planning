@@ -134,20 +134,14 @@ class PathPlan(object):
         start_point = self.compute_pixel_point(self.start_loc)
         goal_point = self.compute_pixel_point(self.goal_loc)
 
-        queue = [ (self.estimate_heuristic(start_point, goal_point), 0.0, start_point) ]  # Use as a heap (estimated_cost, current_weight, point)
-        parents = { start_point: None }  # Also use for identifying visited cells
+        queue = [ ( self.estimate_heuristic(start_point, goal_point), 0.0, start_point, [] ) ]  # Use as a heap (estimated_cost, current_weight, point, partial path)
+        visited = set()
 
         while queue:
-            estimated_cost, current_weight, current_point = heapq.heappop(queue)
+            estimated_cost, current_weight, current_point, partial_path = heapq.heappop(queue)
 
             if current_point == goal_point:
-                
-                path = [goal_point]
-                parent = goal_point
-                while parents[parent] != None:
-                    parent = parents[parent]
-                    path.append(parent)
-                path = path[::-1]
+                path = partial_path + [current_point]
 
                 self.trajectory = self.make_trajectory(path)
 
@@ -161,13 +155,15 @@ class PathPlan(object):
             
             neighbors = self.get_valid_neighbors(current_point)
             for neighbor_point in neighbors:
-                if neighbor_point not in parents:
+                if neighbor_point not in visited:
                     edge_weight = self.compute_distance(current_point, neighbor_point)
                     new_weight = edge_weight + current_weight
                     new_estimate = new_weight + self.estimate_heuristic(neighbor_point, goal_point)
+                    new_path = partial_path + [current_point]
 
-                    parents[neighbor_point] = current_point
-                    queue_item = (new_estimate, new_weight, neighbor_point)
+                    # parents[neighbor_point] = current_point
+                    visited.add(neighbor_point)
+                    queue_item = (new_estimate, new_weight, neighbor_point, new_path)
                     heapq.heappush(queue, queue_item)
 
 
