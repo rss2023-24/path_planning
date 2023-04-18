@@ -24,12 +24,13 @@ class LineTrajectory(object):
         self.has_acceleration = False
         self.visualize = True
         self.viz_namespace = viz_namespace
+        if self.viz_namespace == None:
+            self.viz_namespace = "current"
 
-        if viz_namespace:
-            self.visualize = True
-            self.start_pub = rospy.Publisher(viz_namespace + "/start_point", Marker, queue_size = 1)
-            self.traj_pub  = rospy.Publisher(viz_namespace + "/path", Marker, queue_size = 1)
-            self.end_pub   = rospy.Publisher(viz_namespace + "/end_pose", Marker, queue_size = 1)
+        self.visualize = True
+        self.start_pub = rospy.Publisher(self.viz_namespace + "/start_point", Marker, queue_size = 1)
+        self.traj_pub  = rospy.Publisher(self.viz_namespace + "/path", Marker, queue_size = 1)
+        self.end_pub   = rospy.Publisher(self.viz_namespace + "/end_pose", Marker, queue_size = 1)
 
     # compute the distances along the path for all path segments beyond those already computed
     def update_distances(self):
