@@ -27,6 +27,7 @@ class PurePursuit(object):
         self.position = None
         self.orientation = None
         self.points_np = []
+        self.min_distances = []
         self.tfBuffer = tf2_ros.Buffer()
         listener = tf2_ros.TransformListener(self.tfBuffer)
         self.traj_sub = rospy.Subscriber("/trajectory/current", PoseArray, self.trajectory_callback, queue_size=1)
@@ -87,6 +88,8 @@ class PurePursuit(object):
 
         min_dist_ix, min_dist = min(enumerate(distances), key=lambda d:d[1])
         self.dist_pub.publish(min_dist)
+        self.min_distances.append(min_dist)
+        rospy.logerr("Average Error: " + str(np.average(self.min_distances)))
         if min_dist > self.lookahead:
             # too far from path, stop driving
             drive_cmd.drive.speed = 0
@@ -134,8 +137,8 @@ class PurePursuit(object):
         
         ## pure pursuit to goal ##
 
-        rospy.logerr(pos)
-        rospy.logerr(goal)
+        #rospy.logerr(pos)
+        #rospy.logerr(goal)
         rotation = [self.orientation.x, self.orientation.y, self.orientation.z, self.orientation.w]
         translation = [self.position.x, self.position.y, self.position.z]
         euler = tf.transformations.euler_from_quaternion(rotation)
@@ -146,7 +149,7 @@ class PurePursuit(object):
              [0, 0, 1]])
         map_wrt_baselink = np.linalg.inv(baselink_wrt_map)
         relative_pos = np.matmul(map_wrt_baselink, np.append(goal, 1))
-        rospy.logerr(relative_pos)
+        #rospy.logerr(relative_pos)
         relative_pos = relative_pos[:2]
         if np.linalg.norm(relative_pos) < 0.8:
             # use stopping distance 0.8 to stop at goal
@@ -157,7 +160,7 @@ class PurePursuit(object):
             L = self.wheelbase_length
             R = L_1 / (2 * np.sin(theta))
             turn_angle = np.arctan(L / R)
-            rospy.logerr(turn_angle)
+            #rospy.logerr(turn_angle)
             drive_cmd.drive.speed = self.speed 
             drive_cmd.drive.steering_angle = turn_angle
 
