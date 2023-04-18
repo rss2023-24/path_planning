@@ -45,7 +45,7 @@ class PathPlan(object):
         msg_map = msg.data
         grid_dimensions = (msg.info.height, msg.info.width)
         grid = np.reshape(msg_map, grid_dimensions)
-        grid = ndimage.binary_dilation(grid, iterations=14)
+        grid = ndimage.binary_dilation(grid, iterations=15)
 
 
         self.map_grid = grid
