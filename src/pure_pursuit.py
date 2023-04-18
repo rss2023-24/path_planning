@@ -27,7 +27,9 @@ class PurePursuit(object):
         self.position = None
         self.orientation = None
         self.points_np = []
-        self.min_distances = []
+        self.min_distances = [0,]
+        self.goal_sub = rospy.Subscriber("/move_base_simple/goal", PoseStamped, self.goal_cb, queue_size=10)
+        self.start_sub = rospy.Subscriber('/initialpose', PoseWithCovarianceStamped, self.start_cb, queue_size=10)
         self.tfBuffer = tf2_ros.Buffer()
         listener = tf2_ros.TransformListener(self.tfBuffer)
         self.traj_sub = rospy.Subscriber("/trajectory/current", PoseArray, self.trajectory_callback, queue_size=1)
@@ -52,6 +54,13 @@ class PurePursuit(object):
         self.trajectory.publish_viz(duration=0.0)
         self.points_np = np.array(self.trajectory.points)
         self.last = False # on last segment indicator
+        self.min_distances = [0,]
+
+    def goal_cb(self, msg):
+        self.min_distances = [0,]
+
+    def start_cb(self, msg):
+        self.min_distances = [0,]
 
     def odom_callback(self, msg):
         self.position = msg.pose.pose.position
