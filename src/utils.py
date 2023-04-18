@@ -135,7 +135,10 @@ class LineTrajectory(object):
             print "Publishing start point"
             marker = Marker()
             marker.header = self.make_header("/map")
-            marker.ns = self.viz_namespace + "/trajectory"
+            if self.viz_namespace != None:
+                marker.ns = self.viz_namespace + "/trajectory"
+            else:
+                marker.ns = "/trajectory"
             marker.id = 0
             marker.type = 2 # sphere
             marker.lifetime = rospy.Duration.from_sec(duration)
