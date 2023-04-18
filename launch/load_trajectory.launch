@@ -1,5 +1,5 @@
 <launch>
 	<node pkg="lab6" type="trajectory_loader.py" name="Trajectory_loader">
-		<param name="trajectory" value="$(find lab6)/trajectories/path_2.traj"/>
+		<param name="trajectory" value="$(find lab6)/trajectories/path_3.traj"/>
 	</node>
 </launch>
