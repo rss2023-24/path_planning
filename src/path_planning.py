@@ -63,6 +63,7 @@ class PathPlan(object):
         self.start_loc = (msg.pose.pose.position.y, msg.pose.pose.position.x)
 
     def goal_cb(self, msg):
+        rospy.logerr("Goal Position Updated")
         self.goal_loc = (msg.pose.position.y, msg.pose.position.x)
 
         if self.start_loc != None:
