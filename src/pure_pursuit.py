@@ -128,7 +128,7 @@ class PurePursuit(object):
                     # closer to the end of the line segment to continue forward on the path
                     intersection1 = start + t1 * v
                     intersection2 = start + t2 * v
-                    if np.linalg.norm(end - intersection1) <= np.linalg.norm(end - intersection1):
+                    if np.linalg.norm(end - intersection1) <= np.linalg.norm(end - intersection2):
                         goal = intersection1
                     else:
                         goal = intersection2
