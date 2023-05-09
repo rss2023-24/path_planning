@@ -11,8 +11,7 @@ from geometry_msgs.msg import PoseArray, PoseStamped, PoseWithCovarianceStamped
 from visualization_msgs.msg import Marker
 from ackermann_msgs.msg import AckermannDriveStamped
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Header
-from std_msgs.msg import Float32
+from std_msgs.msg import Header, Float32, Empty
 
 class PurePursuit(object):
     """ Implements Pure Pursuit trajectory tracking with a fixed lookahead and speed.
@@ -29,7 +28,6 @@ class PurePursuit(object):
         self.points_np = []
         self.min_distances = [0,]
         self.goal_sub = rospy.Subscriber("/move_base_simple/goal", PoseStamped, self.goal_cb, queue_size=10)
-        self.start_sub = rospy.Subscriber('/initialpose', PoseWithCovarianceStamped, self.start_cb, queue_size=10)
         self.tfBuffer = tf2_ros.Buffer()
         listener = tf2_ros.TransformListener(self.tfBuffer)
         self.traj_sub = rospy.Subscriber("/trajectory/current", PoseArray, self.trajectory_callback, queue_size=1)
@@ -38,6 +36,7 @@ class PurePursuit(object):
         self.pose_sub = rospy.Subscriber(self.odom_topic, Odometry, self.odom_callback, queue_size=1)
         self.init_pose_sub = rospy.Subscriber("/initialpose", PoseWithCovarianceStamped, self.pose_callback, queue_size=1)
         self.dist_pub = rospy.Publisher("/dist", Float32, queue_size=1)
+        self.goal_reached_pub = rospy.Publisher("/goal_reached", Empty, queue_size=1)
     
     # def conv_load_traj_callback(self, msg):
     #     print("loading trajectory")
@@ -59,15 +58,13 @@ class PurePursuit(object):
     def goal_cb(self, msg):
         self.min_distances = [0,]
 
-    def start_cb(self, msg):
-        self.min_distances = [0,]
-
     def odom_callback(self, msg):
         self.position = msg.pose.pose.position
         self.orientation = msg.pose.pose.orientation
         self.drive()
 
     def pose_callback(self, msg):
+        self.min_distances = [0,]
         self.last = False # setting new pose allows new goals in drive()
 
     def drive(self):
@@ -146,8 +143,6 @@ class PurePursuit(object):
         
         ## pure pursuit to goal ##
 
-        #rospy.logerr(pos)
-        #rospy.logerr(goal)
         rotation = [self.orientation.x, self.orientation.y, self.orientation.z, self.orientation.w]
         translation = [self.position.x, self.position.y, self.position.z]
         euler = tf.transformations.euler_from_quaternion(rotation)
@@ -158,11 +153,11 @@ class PurePursuit(object):
              [0, 0, 1]])
         map_wrt_baselink = np.linalg.inv(baselink_wrt_map)
         relative_pos = np.matmul(map_wrt_baselink, np.append(goal, 1))
-        #rospy.logerr(relative_pos)
         relative_pos = relative_pos[:2]
         if np.linalg.norm(relative_pos) < 0.8:
             # use stopping distance 0.8 to stop at goal
             drive_cmd.drive.speed = 0
+            self.goal_reached_pub.publish(Empty())
         else:
             theta = np.arctan2(relative_pos[1], relative_pos[0])
             L_1 = np.linalg.norm(relative_pos)
